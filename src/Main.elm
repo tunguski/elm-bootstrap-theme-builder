@@ -22,6 +22,7 @@ main =
         , intel = cssIntel
         , initialFiles = [ ( templateName, "" ) ]
         , urls = [ templateName ]
+        , libUrls = []
         , title = "Bootstrap 5.3 theme builder"
         , tagline = "edit the CSS variables — the preview updates live"
         , sessionKey = "bs-theme-builder"
