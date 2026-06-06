@@ -2,10 +2,11 @@
 #
 # build.sh — build the Bootstrap 5.3 theme builder.
 #
-# The app reuses the elm-editor code-editing widget (the syntax-highlighted textarea) for its single
-# CSS file. Since Elm has no cross-project imports, we copy the two modules we need into vendor/ (a
-# source-directory listed in elm.json) before compiling. Set EDITOR to the elm-editor checkout
-# (default ../elm-editor) and ELM to the elm-lang CLI (default `elm`).
+# The app reuses the whole elm-editor shell (file pane, code editing, resizable panes, sharing,
+# autosave) via Editor.program, plugging in its own CSS-preview pane. Since Elm has no cross-project
+# imports, we copy the shell modules we need into vendor/ (a source-directory listed in elm.json)
+# before compiling. Set EDITOR to the elm-editor checkout (default ../elm-editor) and ELM to the
+# elm-lang CLI (default `elm`).
 #
 #   ELM=../../elm.sh ./build.sh
 #
@@ -16,9 +17,9 @@ ELM="${ELM:-elm}"
 EDITOR="${EDITOR:-../elm-editor}"
 OUT="build"
 
-# 1) Vendor the editor widget + highlighter from elm-editor.
+# 1) Vendor the editor shell modules (and the CSS highlighter) from elm-editor.
 mkdir -p vendor
-for m in Highlight CodeEditor; do
+for m in Highlight CodeEditor Share Preview Editor; do
   if [ ! -f "$EDITOR/src/$m.elm" ]; then
     echo "build.sh: missing $EDITOR/src/$m.elm — set EDITOR to the elm-editor checkout" >&2
     exit 1
@@ -37,7 +38,10 @@ $ELM make "$P/src/Main.elm" --project="$P/elm.json" -o "$P/$OUT/app.js" --no-che
 # 3) The default (fully-commented) variable template is fetched by the app at runtime.
 cp src/theme-template.css "$OUT/theme-template.css"
 
-# 4) The host page (Bootstrap CDN inside the preview iframe, the compiled app, and the port wiring).
+# 4) The editor shell's stylesheet (the .ed-* IDE chrome the host page layers its preview styles on).
+cp "$EDITOR/editor.css" "$OUT/editor.css"
+
+# 5) The host page (editor shell CSS + builder overlay, the compiled app, the preview iframe + ports).
 cp index.template.html "$OUT/index.html"
 
 echo "Done. Serve with:  npx --yes serve $OUT   (then open the printed URL)"

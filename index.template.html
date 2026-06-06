@@ -4,72 +4,35 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Bootstrap 5.3 theme builder</title>
+    <!-- The reusable editor shell's chrome (file pane, code editing, resizable panes, …). -->
+    <link rel="stylesheet" href="editor.css" />
     <style>
-      :root {
-        --bg: #1e1e2e; --panel: #252537; --ink: #e6e6f0; --muted: #9a9ab0;
-        --accent: #7c5cff; --line: #34344a; --code-bg: #15151f;
-      }
-      * { box-sizing: border-box; }
+      /* The Bootstrap builder's bits, layered on top of the editor shell (.ed-* / seg-* classes). */
       html, body { margin: 0; height: 100%; }
-      body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--ink); }
-      #app, .app { height: 100%; }
-      .app { display: flex; flex-direction: column; }
+      #app { height: 100%; }
 
-      /* Header */
-      .header { display: flex; align-items: center; gap: .8rem; padding: .55rem 1rem; border-bottom: 1px solid var(--line); }
-      .logo { font-size: 1.2rem; }
-      .title { font-size: 1.02rem; font-weight: 700; }
-      .tagline { color: var(--muted); font-size: .85rem; flex: 1; }
-      .actions { display: flex; gap: .4rem; }
-      .btn { font: inherit; font-size: .82rem; color: var(--ink); background: var(--panel); border: 1px solid var(--line);
-             border-radius: 6px; padding: .35rem .7rem; cursor: pointer; white-space: nowrap; }
-      .btn:hover { border-color: var(--accent); }
-      .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+      /* This is a standalone app, not inside the gallery, so hide the shell's "back to elm-lang" link. */
+      .ed-back { display: none; }
 
-      /* Body: ~30% editor on the left, the live preview filling the rest. */
-      .body { flex: 1; display: grid; grid-template-columns: 30% 1fr; min-height: 0; }
+      /* CSS syntax-highlighting token colours for the shell's code pane (its seg-<kind> classes). */
+      .seg-com { color: #6b6b86; font-style: italic; }
+      .seg-sel { color: #f0c674; }
+      .seg-prop { color: #82aaff; }
+      .seg-val { color: #c3e88d; }
+      .seg-num { color: #f78c6c; }
+      .seg-var { color: #80cbc4; }
+      .seg-str { color: #c3e88d; }
+      .seg-kw { color: #c792ea; }
+      .seg-op { color: #8a8aa6; }
 
-      /* Left pane: the single CSS file. */
-      .editor { display: flex; flex-direction: column; border-right: 1px solid var(--line); min-height: 0; min-width: 0; }
-      .pane-label { display: flex; align-items: baseline; gap: .6rem; padding: .4rem .8rem; border-bottom: 1px solid var(--line);
-                    font-family: ui-monospace, monospace; font-size: .8rem; color: var(--ink); background: #20202f; }
-      .pane-hint { color: var(--muted); font-size: .72rem; }
-      .editor-scroll { flex: 1; overflow: auto; background: var(--code-bg); min-height: 0; }
-      .status { padding: .35rem .8rem; font-size: .78rem; color: var(--muted); border-top: 1px solid var(--line); }
-      .status.ok { color: #5fd07a; }
-      .status.err { color: #ff8a8a; white-space: pre-wrap; }
-
-      /* The reusable CodeEditor widget (ce-* classes). */
-      .ce-editor { min-height: 100%; }
-      .ce-flex { display: flex; align-items: stretch; min-height: 100%; }
-      .ce-gutter { flex: 0 0 auto; padding: .8rem .5rem .8rem .7rem; text-align: right; user-select: none;
-                   color: #54546e; background: var(--code-bg); border-right: 1px solid #2a2a3c;
-                   font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 12.5px; line-height: 1.5; }
-      .ce-gutter-line.current { color: var(--ink); }
-      .ce-area { position: relative; flex: 1 1 auto; min-width: 0; }
-      .ce-code { margin: 0; padding: .8rem 1rem; border: 0;
-                 font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 12.5px; line-height: 1.5;
-                 tab-size: 2; white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; }
-      .ce-pre { position: relative; color: var(--ink); pointer-events: none; }
-      .ce-textarea { position: absolute; inset: 0; width: 100%; height: 100%; resize: none; outline: 0;
-                     background: transparent; color: transparent; caret-color: var(--ink); overflow: hidden; }
-      .ce-textarea::selection { background: rgba(124, 92, 255, .35); }
-
-      /* Token colours (CSS highlighter classes). */
-      .ce-seg { color: var(--ink); }
-      .ce-seg-com { color: #6b6b86; font-style: italic; }
-      .ce-seg-sel { color: #f0c674; }
-      .ce-seg-prop { color: #82aaff; }
-      .ce-seg-val { color: #c3e88d; }
-      .ce-seg-num { color: #f78c6c; }
-      .ce-seg-var { color: #80cbc4; }
-      .ce-seg-str { color: #c3e88d; }
-      .ce-seg-kw { color: #c792ea; }
-      .ce-seg-op { color: #8a8aa6; }
-
-      /* Right pane: the preview iframe. */
-      .preview { min-width: 0; min-height: 0; background: #fff; }
-      #preview-frame { width: 100%; height: 100%; border: 0; display: block; background: #fff; }
+      /* The Bootstrap preview pane: a small toolbar above a full-height preview iframe. */
+      .bs-preview { display: flex; flex-direction: column; height: 100%; min-height: 0; gap: 8px; }
+      .bs-toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
+      .bs-btn { font: inherit; font-size: 13px; color: #e6edf3; background: #1b2747; border: 1px solid #2a3550;
+                border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+      .bs-btn:hover { border-color: #3a7bd5; }
+      #preview-frame { flex: 1; width: 100%; min-height: 0; border: 1px solid #2a3550; border-radius: 8px;
+                       background: #fff; display: block; }
     </style>
   </head>
   <body>
