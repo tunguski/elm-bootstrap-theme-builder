@@ -62,6 +62,7 @@ type alias Settings =
     , c4 : String -- success (blank = derived from primary)
     , c5 : String -- danger (blank = derived)
     , c6 : String -- warning (blank = derived)
+    , c7 : String -- active/selected (blank = derived: primary + secondary)
     , headings : String -- small | medium | big
     , font : Int -- 12 | 16 | 18  (px)
     , border : String -- thin | medium | thick
@@ -81,6 +82,7 @@ defaults =
     , c4 = ""
     , c5 = ""
     , c6 = ""
+    , c7 = ""
     , headings = "medium"
     , font = 16
     , border = "thin"
@@ -186,8 +188,10 @@ paletteSection s apply =
                         , seedPicker "Danger" p.danger (\v -> apply { s | c5 = v })
                         , seedPicker "Warning" p.warning (\v -> apply { s | c6 = v })
                         ]
+                    , div [ class "wz-seeds" ]
+                        [ seedPicker "Active" (activeColor s) (\v -> apply { s | c7 = v }) ]
                     , div [ class "wz-hint" ]
-                        [ text "Start from a preset; the semantic colours are derived from your primary — tweak any of the six." ]
+                        [ text "Start from a preset; the semantic and active-state colours are derived from your primary — tweak any." ]
                     ]
 
               else
@@ -215,7 +219,7 @@ seedFrom key s =
         p =
             presetByKey key
     in
-    { s | palette = key, c1 = p.primary, c2 = p.secondary, c3 = p.info, c4 = "", c5 = "", c6 = "" }
+    { s | palette = key, c1 = p.primary, c2 = p.secondary, c3 = p.info, c4 = "", c5 = "", c6 = "", c7 = "" }
 
 
 presetByKey : String -> Palette
@@ -327,6 +331,7 @@ settingsFrom kv =
     , c4 = g "c4" defaults.c4
     , c5 = g "c5" defaults.c5
     , c6 = g "c6" defaults.c6
+    , c7 = g "c7" defaults.c7
     , headings = g "headings" defaults.headings
     , font = Maybe.withDefault defaults.font (String.toInt (g "font" (String.fromInt defaults.font)))
     , border = g "border" defaults.border
@@ -362,6 +367,8 @@ configLine s =
         ++ s.c5
         ++ " c6="
         ++ s.c6
+        ++ " c7="
+        ++ s.c7
         ++ " headings="
         ++ s.headings
         ++ " font="
@@ -594,10 +601,47 @@ componentBlock s =
     String.join "\n"
         ([ wizardBegin, configLine s ]
             ++ buttonRules p
+            ++ activeRules s
             ++ spacingRules s
             ++ headingRules s
             ++ [ wizardEnd ]
         )
+
+
+{-| The colour for "active" / "selected" component states — a selected nav-pill, the current
+pagination page, the active list-group item, a checked checkbox, an active dropdown item. Bootstrap
+bakes these from `$primary` at compile time, so they need component rules rather than `:root`. The
+default is the primary blended with the secondary, so a selection reads as a calmer relative of the
+primary instead of the primary itself; the custom seed (c7) overrides. -}
+activeColor : Settings -> String
+activeColor s =
+    if s.custom && String.trim s.c7 /= "" then
+        normaliseHex s.c7
+
+    else
+        let
+            p =
+                resolvePalette s
+        in
+        mixHex p.primary p.secondary 0.4
+
+
+{-| Component rules that recolour every "active/selected" state to `activeColor`. -}
+activeRules : Settings -> List String
+activeRules s =
+    let
+        c =
+            activeColor s
+
+        txt =
+            contrast c
+    in
+    [ ".nav-pills { " ++ joinDecls [ decl "--bs-nav-pills-link-active-bg" c, decl "--bs-nav-pills-link-active-color" txt ] ++ " }"
+    , ".pagination { " ++ joinDecls [ decl "--bs-pagination-active-bg" c, decl "--bs-pagination-active-border-color" c, decl "--bs-pagination-active-color" txt ] ++ " }"
+    , ".list-group { " ++ joinDecls [ decl "--bs-list-group-active-bg" c, decl "--bs-list-group-active-border-color" c, decl "--bs-list-group-active-color" txt ] ++ " }"
+    , ".dropdown-menu { " ++ joinDecls [ decl "--bs-dropdown-link-active-bg" c, decl "--bs-dropdown-link-active-color" txt ] ++ " }"
+    , ".form-check-input:checked { background-color: " ++ c ++ "; border-color: " ++ c ++ "; }"
+    ]
 
 
 {-| The `( name, value )` variable declarations the wizard writes into `:root` — all of which exist in
