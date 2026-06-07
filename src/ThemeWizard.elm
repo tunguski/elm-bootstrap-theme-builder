@@ -56,9 +56,12 @@ type alias Settings =
     , spacing : String -- small | medium | large
     , palette : String -- a preset key, used when custom is False
     , custom : Bool
-    , c1 : String -- custom seed colours (hex)
-    , c2 : String
-    , c3 : String
+    , c1 : String -- custom seeds (hex): primary
+    , c2 : String -- secondary (blank = derived from primary)
+    , c3 : String -- accent / info (blank = derived)
+    , c4 : String -- success (blank = derived from primary)
+    , c5 : String -- danger (blank = derived)
+    , c6 : String -- warning (blank = derived)
     , headings : String -- small | medium | big
     , font : Int -- 12 | 16 | 18  (px)
     , border : String -- thin | medium | thick
@@ -75,6 +78,9 @@ defaults =
     , c1 = "#0d6efd"
     , c2 = "#6c757d"
     , c3 = "#0dcaf0"
+    , c4 = ""
+    , c5 = ""
+    , c6 = ""
     , headings = "medium"
     , font = 16
     , border = "thin"
@@ -162,11 +168,26 @@ paletteSection s apply =
                 , span [] [ text "Custom palette" ]
                 ]
             , if s.custom then
-                div [ class "wz-seeds" ]
-                    [ seedPicker "Primary" s.c1 (\v -> apply { s | c1 = v })
-                    , seedPicker "Secondary" s.c2 (\v -> apply { s | c2 = v })
-                    , seedPicker "Accent" s.c3 (\v -> apply { s | c3 = v })
-                    , div [ class "wz-hint" ] [ text "Start from a preset above, then tweak any of the three." ]
+                let
+                    -- Show each picker at its *resolved* colour, so the derived ones (secondary,
+                    -- accent and the semantic colours) display real values and update live as the
+                    -- primary changes, rather than showing black for a blank seed.
+                    p =
+                        customPalette s
+                in
+                div [ class "wz-seeds-grid" ]
+                    [ div [ class "wz-seeds" ]
+                        [ seedPicker "Primary" p.primary (\v -> apply { s | c1 = v })
+                        , seedPicker "Secondary" p.secondary (\v -> apply { s | c2 = v })
+                        , seedPicker "Accent" p.info (\v -> apply { s | c3 = v })
+                        ]
+                    , div [ class "wz-seeds" ]
+                        [ seedPicker "Success" p.success (\v -> apply { s | c4 = v })
+                        , seedPicker "Danger" p.danger (\v -> apply { s | c5 = v })
+                        , seedPicker "Warning" p.warning (\v -> apply { s | c6 = v })
+                        ]
+                    , div [ class "wz-hint" ]
+                        [ text "Start from a preset; the semantic colours are derived from your primary — tweak any of the six." ]
                     ]
 
               else
@@ -186,14 +207,15 @@ pickPreset key s =
         { s | palette = key }
 
 
-{-| Set the three custom seed colours from a preset's primary / secondary / accent. -}
+{-| Seed the custom colours from a preset: primary / secondary / accent come from the preset; the
+semantic seeds are cleared so success / danger / warning re-derive from the new primary. -}
 seedFrom : String -> Settings -> Settings
 seedFrom key s =
     let
         p =
             presetByKey key
     in
-    { s | palette = key, c1 = p.primary, c2 = p.secondary, c3 = p.info }
+    { s | palette = key, c1 = p.primary, c2 = p.secondary, c3 = p.info, c4 = "", c5 = "", c6 = "" }
 
 
 presetByKey : String -> Palette
@@ -302,6 +324,9 @@ settingsFrom kv =
     , c1 = g "c1" defaults.c1
     , c2 = g "c2" defaults.c2
     , c3 = g "c3" defaults.c3
+    , c4 = g "c4" defaults.c4
+    , c5 = g "c5" defaults.c5
+    , c6 = g "c6" defaults.c6
     , headings = g "headings" defaults.headings
     , font = Maybe.withDefault defaults.font (String.toInt (g "font" (String.fromInt defaults.font)))
     , border = g "border" defaults.border
@@ -331,6 +356,12 @@ configLine s =
         ++ s.c2
         ++ " c3="
         ++ s.c3
+        ++ " c4="
+        ++ s.c4
+        ++ " c5="
+        ++ s.c5
+        ++ " c6="
+        ++ s.c6
         ++ " headings="
         ++ s.headings
         ++ " font="
@@ -866,35 +897,31 @@ resolvePalette s =
                 bootstrapDefault
 
 
-{-| Build a full palette from one to three seed colours: seed 1 is primary (and, if seed 2 is
-absent, secondary is derived as a desaturated/greyed primary); seed 3 is the accent (info). The
-semantic colours (success / warning / danger) keep their meaning-bearing defaults. -}
+{-| Build a full palette from the custom seeds. Seed 1 is the primary. Every other colour falls back
+to a value *derived from the primary* when its seed is blank, so the whole palette harmonises with one
+colour: secondary is a greyed primary, the accent (info) leans cyan, and the semantic colours keep
+their meaning-bearing hue (green / red / amber) nudged a little towards the primary — so success,
+danger and warning sit with the theme instead of being fixed Bootstrap colours. Any seed the user
+fills in overrides its derived value. -}
 customPalette : Settings -> Palette
 customPalette s =
     let
         primary =
             normaliseHex s.c1
 
-        secondary =
-            if String.trim s.c2 == "" then
-                mixHex primary "#6c757d" 0.6
+        seed raw fallback =
+            if String.trim raw == "" then
+                fallback
 
             else
-                normaliseHex s.c2
-
-        accent =
-            if String.trim s.c3 == "" then
-                mixHex primary "#0dcaf0" 0.5
-
-            else
-                normaliseHex s.c3
+                normaliseHex raw
     in
     { primary = primary
-    , secondary = secondary
-    , success = "#198754"
-    , info = accent
-    , warning = "#ffc107"
-    , danger = "#dc3545"
+    , secondary = seed s.c2 (mixHex primary "#6c757d" 0.6)
+    , info = seed s.c3 (mixHex primary "#0dcaf0" 0.5)
+    , success = seed s.c4 (mixHex "#198754" primary 0.22)
+    , danger = seed s.c5 (mixHex "#dc3545" primary 0.22)
+    , warning = seed s.c6 (mixHex "#ffc107" primary 0.15)
     , light = mixHex primary "#ffffff" 0.92
     , dark = mixHex primary "#000000" 0.78
     }
