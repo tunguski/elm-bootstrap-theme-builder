@@ -27,6 +27,7 @@ main =
         , tagline = "edit the CSS variables — the preview updates live"
         , sessionKey = "bs-theme-builder"
         , fileBrowser = False
+        , backLink = Nothing
         }
 
 
