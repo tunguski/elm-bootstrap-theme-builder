@@ -26,6 +26,7 @@ main =
         , title = "Bootstrap 5.3 theme builder"
         , tagline = "edit the CSS variables — the preview updates live"
         , sessionKey = "bs-theme-builder"
+        , fileBrowser = False
         }
 
 
