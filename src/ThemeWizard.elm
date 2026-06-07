@@ -171,11 +171,11 @@ paletteSection s apply =
                 ]
             , if s.custom then
                 let
-                    -- Show each picker at its *resolved* colour, so the derived ones (secondary,
-                    -- accent and the semantic colours) display real values and update live as the
-                    -- primary changes, rather than showing black for a blank seed.
+                    -- Show each picker at its *resolved* colour — after derivation, de-collision and
+                    -- any override — so the pickers reflect exactly what the theme uses (and update
+                    -- live as the primary changes) rather than a pre-adjustment value.
                     p =
-                        customPalette s
+                        resolvePalette s
                 in
                 div [ class "wz-seeds-grid" ]
                     [ div [ class "wz-seeds" ]
@@ -926,19 +926,110 @@ bootstrapDefault =
     Palette "#0d6efd" "#6c757d" "#198754" "#0dcaf0" "#ffc107" "#dc3545" "#f8f9fa" "#212529"
 
 
-{-| The palette in force: the custom one (built from the seeds) when custom is on, else the preset. -}
+{-| The palette in force: the custom one (built from the seeds) when custom is on, else the preset —
+after the de-collision pass that pulls semantic colours away from a primary they sit too near. In
+custom mode any seed the user filled in is re-applied *after* de-collision, so an explicit choice is
+always respected and never moved. -}
 resolvePalette : Settings -> Palette
 resolvePalette s =
     if s.custom then
-        customPalette s
+        let
+            sep =
+                decollide (customPalette s)
+        in
+        { sep
+            | success = overrideOr s.c4 sep.success
+            , danger = overrideOr s.c5 sep.danger
+            , warning = overrideOr s.c6 sep.warning
+        }
 
     else
-        case List.filter (\( key, _, _ ) -> key == s.palette) presets of
-            ( _, _, p ) :: _ ->
-                p
+        decollide (presetPalette s)
 
-            [] ->
-                bootstrapDefault
+
+{-| The named preset (or Bootstrap's defaults if the key is unknown), before de-collision. -}
+presetPalette : Settings -> Palette
+presetPalette s =
+    case List.filter (\( key, _, _ ) -> key == s.palette) presets of
+        ( _, _, p ) :: _ ->
+            p
+
+        [] ->
+            bootstrapDefault
+
+
+overrideOr : String -> String -> String
+overrideOr raw fallback =
+    if String.trim raw == "" then
+        fallback
+
+    else
+        normaliseHex raw
+
+
+{-| Pull the alert-semantic colours (success / danger / warning) away from the primary when they are
+confusably close to it — e.g. a green primary with a green success (mint, forest) or a pink primary
+with a pink danger (candy). Colours already distinct are left untouched, so good palettes are a
+no-op. (Secondary, accent and the active colour are intentional relatives of the primary and are not
+separated.) -}
+decollide : Palette -> Palette
+decollide p =
+    { p
+        | success = separateFromPrimary p.primary p.success
+        , danger = separateFromPrimary p.primary p.danger
+        , warning = separateFromPrimary p.primary p.warning
+    }
+
+
+{-| If `color` is too close to `primary` (small hue *and* lightness difference, both reasonably
+saturated), separate it by pushing its lightness to the far side of the primary's *and* rotating its
+hue away — keeping its hue family but making it clearly distinct. Otherwise return it unchanged. -}
+separateFromPrimary : String -> String -> String
+separateFromPrimary primary color =
+    case ( parseHex primary, parseHex color ) of
+        ( Just pr, Just cr ) ->
+            let
+                ( ph, ps, pl ) =
+                    toHsl pr
+
+                ( ch, cs, cl ) =
+                    toHsl cr
+            in
+            if ps < 0.15 || cs < 0.15 then
+                -- One of them is near-grey; lightness alone keeps them apart.
+                color
+
+            else if hueDist ph ch < 35 && abs (pl - cl) < 0.2 then
+                let
+                    -- Lightness: jump to the far side of the primary, with a clear gap.
+                    targetL =
+                        if pl > 0.35 then
+                            clampF 0.2 0.82 (pl - 0.24)
+
+                        else
+                            clampF 0.2 0.82 (pl + 0.24)
+
+                    -- Hue: rotate away from the primary to ~50° apart, capped so it stays in family.
+                    rot =
+                        Basics.min 35 (50 - hueDist ph ch)
+
+                    dir =
+                        if wrapSigned (ch - ph) >= 0 then
+                            1
+
+                        else
+                            -1
+
+                    newH =
+                        wrap360 (ch + toFloat dir * rot)
+                in
+                hexOfHsl ( newH, cs, targetL )
+
+            else
+                color
+
+        _ ->
+            color
 
 
 {-| Build a full palette from the custom seeds. Seed 1 is the primary. Every other colour falls back
@@ -973,6 +1064,140 @@ customPalette s =
 
 
 -- COLOUR MATHS
+
+
+{-| RGB (0–255) → HSL with hue in degrees `[0, 360)` and saturation/lightness in `[0, 1]`. -}
+toHsl : ( Int, Int, Int ) -> ( Float, Float, Float )
+toHsl ( r, g, b ) =
+    let
+        rf =
+            toFloat r / 255
+
+        gf =
+            toFloat g / 255
+
+        bf =
+            toFloat b / 255
+
+        mx =
+            Basics.max rf (Basics.max gf bf)
+
+        mn =
+            Basics.min rf (Basics.min gf bf)
+
+        l =
+            (mx + mn) / 2
+
+        d =
+            mx - mn
+    in
+    if d == 0 then
+        ( 0, 0, l )
+
+    else
+        let
+            s =
+                if l > 0.5 then
+                    d / (2 - mx - mn)
+
+                else
+                    d / (mx + mn)
+
+            h =
+                if mx == rf then
+                    (gf - bf) / d + (if gf < bf then 6 else 0)
+
+                else if mx == gf then
+                    (bf - rf) / d + 2
+
+                else
+                    (rf - gf) / d + 4
+        in
+        ( h * 60, s, l )
+
+
+{-| HSL (hue in degrees, s/l in `[0, 1]`) → RGB (0–255). -}
+fromHsl : ( Float, Float, Float ) -> ( Int, Int, Int )
+fromHsl ( h, s, l ) =
+    if s == 0 then
+        let
+            v =
+                round (l * 255)
+        in
+        ( v, v, v )
+
+    else
+        let
+            q =
+                if l < 0.5 then
+                    l * (1 + s)
+
+                else
+                    l + s - l * s
+
+            p =
+                2 * l - q
+
+            hk =
+                h / 360
+        in
+        ( round (hue2rgb p q (hk + 1 / 3) * 255)
+        , round (hue2rgb p q hk * 255)
+        , round (hue2rgb p q (hk - 1 / 3) * 255)
+        )
+
+
+hue2rgb : Float -> Float -> Float -> Float
+hue2rgb p q t0 =
+    let
+        t =
+            modFloat t0 1
+    in
+    if t < 1 / 6 then
+        p + (q - p) * 6 * t
+
+    else if t < 1 / 2 then
+        q
+
+    else if t < 2 / 3 then
+        p + (q - p) * (2 / 3 - t) * 6
+
+    else
+        p
+
+
+hexOfHsl : ( Float, Float, Float ) -> String
+hexOfHsl hsl =
+    toHex (fromHsl hsl)
+
+
+{-| Floating-point modulo: the non-negative remainder of `a / b`. -}
+modFloat : Float -> Float -> Float
+modFloat a b =
+    a - b * toFloat (floor (a / b))
+
+
+{-| Wrap an angle to `[0, 360)`. -}
+wrap360 : Float -> Float
+wrap360 a =
+    modFloat a 360
+
+
+{-| Wrap an angle difference to `(-180, 180]` (the signed shortest rotation). -}
+wrapSigned : Float -> Float
+wrapSigned d =
+    modFloat (d + 180) 360 - 180
+
+
+{-| The shortest distance between two hues, in degrees `[0, 180]`. -}
+hueDist : Float -> Float -> Float
+hueDist a b =
+    abs (wrapSigned (a - b))
+
+
+clampF : Float -> Float -> Float -> Float
+clampF lo hi x =
+    Basics.max lo (Basics.min hi x)
 
 
 {-| Blend two hex colours: `t` of the way from `a` to `b` (0 = a, 1 = b). -}
