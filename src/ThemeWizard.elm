@@ -140,12 +140,25 @@ paletteSection s apply =
         , div [ class "wz-palette-body" ]
             [ select
                 [ class "wz-select"
-                , Html.Attributes.disabled s.custom
-                , onInput (\v -> apply { s | palette = v, custom = False })
+                , onInput (\v -> apply (pickPreset v s))
                 ]
-                (List.map (\( key, lbl, _ ) -> option [ value key, selected (key == s.palette && not s.custom) ] [ text lbl ]) presets)
+                (List.map (\( key, lbl, _ ) -> option [ value key, selected (key == s.palette) ] [ text lbl ]) presets)
             , label [ class "wz-check" ]
-                [ input [ type_ "checkbox", Html.Attributes.checked s.custom, Html.Events.onCheck (\c -> apply { s | custom = c }) ] []
+                [ input
+                    [ type_ "checkbox"
+                    , Html.Attributes.checked s.custom
+                    , Html.Events.onCheck
+                        (\c ->
+                            apply
+                                (if c then
+                                    seedFrom s.palette { s | custom = True }
+
+                                 else
+                                    { s | custom = False }
+                                )
+                        )
+                    ]
+                    []
                 , span [] [ text "Custom palette" ]
                 ]
             , if s.custom then
@@ -153,13 +166,44 @@ paletteSection s apply =
                     [ seedPicker "Primary" s.c1 (\v -> apply { s | c1 = v })
                     , seedPicker "Secondary" s.c2 (\v -> apply { s | c2 = v })
                     , seedPicker "Accent" s.c3 (\v -> apply { s | c3 = v })
-                    , div [ class "wz-hint" ] [ text "Pick 1–3 colours; the rest are derived." ]
+                    , div [ class "wz-hint" ] [ text "Start from a preset above, then tweak any of the three." ]
                     ]
 
               else
                 text ""
             ]
         ]
+
+
+{-| Choosing a preset in the dropdown: in custom mode it seeds the three custom colours from the
+preset (so the user can then tweak only some); otherwise it just selects the preset. -}
+pickPreset : String -> Settings -> Settings
+pickPreset key s =
+    if s.custom then
+        seedFrom key { s | palette = key }
+
+    else
+        { s | palette = key }
+
+
+{-| Set the three custom seed colours from a preset's primary / secondary / accent. -}
+seedFrom : String -> Settings -> Settings
+seedFrom key s =
+    let
+        p =
+            presetByKey key
+    in
+    { s | palette = key, c1 = p.primary, c2 = p.secondary, c3 = p.info }
+
+
+presetByKey : String -> Palette
+presetByKey key =
+    case List.filter (\( k, _, _ ) -> k == key) presets of
+        ( _, _, p ) :: _ ->
+            p
+
+        [] ->
+            bootstrapDefault
 
 
 seedPicker : String -> String -> (String -> String) -> Html String
@@ -302,16 +346,29 @@ configLine s =
 -- APPLYING / REMOVING THE BLOCK
 
 
-{-| Regenerate the wizard block from `settings` and splice it into `source` (replacing the existing
-block, or inserting it just before the component marker / at the end). Returns the new full source. -}
+{-| Apply the settings to `source`: write the variable knobs (colours, radius, font size, border
+width, font family) straight into the editable `:root` block — uncommenting and setting each — so
+they show up checked in the Form's Properties tab and in context in the source; and splice the
+component rules (buttons, spacing, headings) that `:root` can't drive into a managed block before the
+component-styles marker. Returns the new full source. -}
 applyWizard : Settings -> String -> String
 applyWizard settings source =
-    spliceBlock (renderBlock settings) source
+    source
+        |> setRootVars (rootVarDecls settings)
+        |> spliceBlock (componentBlock settings)
 
 
-{-| Remove the wizard block entirely (the "Remove wizard styles" action). -}
+{-| Undo the wizard ("Remove wizard styles"): re-comment the `:root` variables it manages and remove
+the generated component block. -}
 removeBlock : String -> String
 removeBlock source =
+    source
+        |> commentRootVars (List.map Tuple.first (rootVarDecls (readSettings source)))
+        |> stripComponentBlock
+
+
+stripComponentBlock : String -> String
+stripComponentBlock source =
     let
         lines =
             String.lines source
@@ -326,6 +383,119 @@ removeBlock source =
 
         _ ->
             source
+
+
+{-| Set each `(name, value)` declaration active in the first (light) `:root { … }` block: the line
+for that variable — commented or not — becomes `  name: value;`. Names not present are left alone
+(every variable the wizard sets exists in the template). -}
+setRootVars : List ( String, String ) -> String -> String
+setRootVars decls source =
+    mapRootBlock
+        (\line ->
+            case varNameOf line of
+                Just nm ->
+                    case lookupAssoc nm decls of
+                        Just v ->
+                            "  " ++ nm ++ ": " ++ v ++ ";"
+
+                        Nothing ->
+                            line
+
+                Nothing ->
+                    line
+        )
+        source
+
+
+{-| Comment out (deactivate) the named variables in the `:root` block — the inverse of `setRootVars`. -}
+commentRootVars : List String -> String -> String
+commentRootVars names source =
+    mapRootBlock
+        (\line ->
+            let
+                t =
+                    String.trim line
+            in
+            case varNameOf line of
+                Just nm ->
+                    if String.startsWith "--" t && List.member nm names then
+                        "  /* " ++ t ++ " */"
+
+                    else
+                        line
+
+                Nothing ->
+                    line
+        )
+        source
+
+
+{-| Apply `f` to every line inside the first `:root { … }` block (between its braces). -}
+mapRootBlock : (String -> String) -> String -> String
+mapRootBlock f source =
+    let
+        lines =
+            String.lines source
+
+        ( lo, hi ) =
+            rootRange lines
+    in
+    if lo < 0 then
+        source
+
+    else
+        lines
+            |> List.indexedMap
+                (\j line ->
+                    if j > lo && j < hi then
+                        f line
+
+                    else
+                        line
+                )
+            |> String.join "\n"
+
+
+{-| The line range `( open, close )` of the first `:root { … }` block (`( -1, -1 )` if none). -}
+rootRange : List String -> ( Int, Int )
+rootRange lines =
+    case indexWhere (\l -> String.startsWith ":root" (String.trim l) && String.endsWith "{" (String.trim l)) lines of
+        Just o ->
+            case indexWhereFrom (o + 1) (\l -> String.trim l == "}") lines of
+                Just c ->
+                    ( o, c )
+
+                Nothing ->
+                    ( o, List.length lines )
+
+        Nothing ->
+            ( -1, -1 )
+
+
+{-| The variable name on a declaration line (commented or active), or `Nothing` if it isn't one. -}
+varNameOf : String -> Maybe String
+varNameOf line =
+    let
+        t =
+            String.trim line
+
+        inner =
+            if String.startsWith "/*" t && String.endsWith "*/" t then
+                String.trim (String.dropRight 2 (String.dropLeft 2 t))
+
+            else
+                t
+    in
+    if String.startsWith "--" inner then
+        case String.indexes ":" inner of
+            i :: _ ->
+                Just (String.trim (String.left i inner))
+
+            [] ->
+                Nothing
+
+    else
+        Nothing
 
 
 spliceBlock : String -> String -> String
@@ -381,19 +551,17 @@ lineIndex mark lines =
 -- GENERATING THE BLOCK
 
 
-renderBlock : Settings -> String
-renderBlock s =
+{-| The managed component block: the rules `:root` variables can't drive (per-variant buttons, the
+spacing/heading overrides), wrapped in the begin/config/end markers. The variable knobs are written
+into `:root` separately (see `setRootVars`). -}
+componentBlock : Settings -> String
+componentBlock s =
     let
         p =
             resolvePalette s
     in
     String.join "\n"
-        ([ wizardBegin
-         , configLine s
-         , ":root {"
-         ]
-            ++ List.map (\d -> "  " ++ d) (rootVars s p)
-            ++ [ "}" ]
+        ([ wizardBegin, configLine s ]
             ++ buttonRules p
             ++ spacingRules s
             ++ headingRules s
@@ -401,18 +569,20 @@ renderBlock s =
         )
 
 
-rootVars : Settings -> Palette -> List String
-rootVars s p =
-    radiusVars s.corners
-        ++ [ decl "--bs-body-font-size" (String.fromInt s.font ++ "px")
-           , decl "--bs-border-width" (borderWidth s.border)
-           , decl "--bs-body-font-family" (fontFamily s.family)
+{-| The `( name, value )` variable declarations the wizard writes into `:root` — all of which exist in
+the template, so they round-trip cleanly. -}
+rootVarDecls : Settings -> List ( String, String )
+rootVarDecls s =
+    radiusPairs s.corners
+        ++ [ ( "--bs-body-font-size", String.fromInt s.font ++ "px" )
+           , ( "--bs-border-width", borderWidth s.border )
+           , ( "--bs-body-font-family", fontFamily s.family )
            ]
-        ++ colorVars p
+        ++ colorPairs (resolvePalette s)
 
 
-radiusVars : String -> List String
-radiusVars corners =
+radiusPairs : String -> List ( String, String )
+radiusPairs corners =
     let
         ( r, sm, lg ) =
             case corners of
@@ -442,10 +612,10 @@ radiusVars corners =
                 _ ->
                     "1rem"
     in
-    [ decl "--bs-border-radius" r
-    , decl "--bs-border-radius-sm" sm
-    , decl "--bs-border-radius-lg" lg
-    , decl "--bs-border-radius-xl" xl
+    [ ( "--bs-border-radius", r )
+    , ( "--bs-border-radius-sm", sm )
+    , ( "--bs-border-radius-lg", lg )
+    , ( "--bs-border-radius-xl", xl )
     ]
 
 
@@ -475,11 +645,11 @@ fontFamily f =
             "var(--bs-font-sans-serif)"
 
 
-{-| The full set of themed-colour variables for a palette: each colour's base/rgb/emphasis/subtle
-family, plus the link colours derived from `primary`. -}
-colorVars : Palette -> List String
-colorVars p =
-    List.concatMap colorFamily
+{-| The full set of themed-colour `( name, value )` pairs for a palette: each colour's
+base/rgb/emphasis/subtle family, plus the link colours derived from `primary`. -}
+colorPairs : Palette -> List ( String, String )
+colorPairs p =
+    List.concatMap colorFamilyPairs
         [ ( "primary", p.primary )
         , ( "secondary", p.secondary )
         , ( "success", p.success )
@@ -489,20 +659,20 @@ colorVars p =
         , ( "light", p.light )
         , ( "dark", p.dark )
         ]
-        ++ [ decl "--bs-link-color" p.primary
-           , decl "--bs-link-color-rgb" (rgbOf p.primary)
-           , decl "--bs-link-hover-color" (mixHex p.primary "#000000" 0.2)
-           , decl "--bs-link-hover-color-rgb" (rgbOf (mixHex p.primary "#000000" 0.2))
+        ++ [ ( "--bs-link-color", p.primary )
+           , ( "--bs-link-color-rgb", rgbOf p.primary )
+           , ( "--bs-link-hover-color", mixHex p.primary "#000000" 0.2 )
+           , ( "--bs-link-hover-color-rgb", rgbOf (mixHex p.primary "#000000" 0.2) )
            ]
 
 
-colorFamily : ( String, String ) -> List String
-colorFamily ( name, c ) =
-    [ decl ("--bs-" ++ name) c
-    , decl ("--bs-" ++ name ++ "-rgb") (rgbOf c)
-    , decl ("--bs-" ++ name ++ "-text-emphasis") (mixHex c "#000000" 0.6)
-    , decl ("--bs-" ++ name ++ "-bg-subtle") (mixHex c "#ffffff" 0.8)
-    , decl ("--bs-" ++ name ++ "-border-subtle") (mixHex c "#ffffff" 0.6)
+colorFamilyPairs : ( String, String ) -> List ( String, String )
+colorFamilyPairs ( name, c ) =
+    [ ( "--bs-" ++ name, c )
+    , ( "--bs-" ++ name ++ "-rgb", rgbOf c )
+    , ( "--bs-" ++ name ++ "-text-emphasis", mixHex c "#000000" 0.6 )
+    , ( "--bs-" ++ name ++ "-bg-subtle", mixHex c "#ffffff" 0.8 )
+    , ( "--bs-" ++ name ++ "-border-subtle", mixHex c "#ffffff" 0.6 )
     ]
 
 
@@ -885,6 +1055,25 @@ dropSuffix suf s =
 nth : Int -> List a -> Maybe a
 nth i xs =
     List.head (List.drop i xs)
+
+
+lookupAssoc : String -> List ( String, String ) -> Maybe String
+lookupAssoc k pairs =
+    case pairs of
+        ( a, b ) :: rest ->
+            if a == k then
+                Just b
+
+            else
+                lookupAssoc k rest
+
+        [] ->
+            Nothing
+
+
+indexWhereFrom : Int -> (a -> Bool) -> List a -> Maybe Int
+indexWhereFrom start pred xs =
+    indexWhere pred (List.drop start xs) |> Maybe.map (\i -> i + start)
 
 
 indexWhere : (a -> Bool) -> List a -> Maybe Int

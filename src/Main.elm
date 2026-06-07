@@ -31,8 +31,10 @@ main =
         , fileBrowser = False
         , backLink = Nothing
         , panels =
-            [ { icon = "form", title = "Form", tabs = ThemeForm.tabs, view = ThemeForm.view }
-            , { icon = "wizard", title = "Wizard", tabs = [], view = \_ source -> ThemeWizard.view source }
+            -- Order = title-bar order: Wizard first (the default view), then Form; the shell appends
+            -- the plain "Code" (source) editor last.
+            [ { icon = "wizard", title = "Wizard", tabs = [], view = \_ source -> ThemeWizard.view source }
+            , { icon = "form", title = "Form", tabs = ThemeForm.tabs, view = ThemeForm.view }
             ]
         }
 
