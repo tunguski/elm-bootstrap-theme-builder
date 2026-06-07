@@ -32,6 +32,71 @@
       .bs-btn:hover { border-color: #3a7bd5; }
       #preview-frame { flex: 1; width: 100%; min-height: 0; border: 1px solid #2a3550; border-radius: 8px;
                        background: #fff; display: block; }
+
+      /* Typed-form "Properties" tab: one checkbox + value row per Bootstrap variable, grouped. */
+      .bs-form-props { display: flex; flex-direction: column; gap: 1px; }
+      .bs-form-group { margin: 16px 0 4px; padding-bottom: 4px; font: 700 12px ui-monospace, monospace;
+                       color: #80cbc4; border-bottom: 1px solid #1b2535; }
+      .bs-form-group:first-child { margin-top: 0; }
+      .bs-form-section { margin: 12px 0 2px; font-size: 11px; font-weight: 600; text-transform: uppercase;
+                         letter-spacing: 0.04em; color: #8aa0b2; }
+      .bs-prop-row { display: flex; align-items: center; gap: 10px; padding: 3px 4px; border-radius: 6px; }
+      .bs-prop-row:hover { background: #15202e; }
+      .bs-prop-check { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; cursor: pointer; }
+      .bs-prop-check input { cursor: pointer; }
+      .bs-prop-name { font-family: ui-monospace, monospace; font-size: 12.5px; color: #9fb3c8;
+                      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .bs-prop-row.on .bs-prop-name { color: #e6edf3; }
+      .bs-prop-val { flex: 0 0 auto; width: 168px; font-family: ui-monospace, monospace; font-size: 12.5px;
+                     padding: 4px 8px; background: #0b1118; color: #e6edf3; border: 1px solid #2a3550;
+                     border-radius: 6px; }
+      .bs-prop-val:focus { outline: none; border-color: #3a7bd5; }
+      .bs-prop-row:not(.on) .bs-prop-val { opacity: 0.55; }
+
+      /* Typed-form "Component styles" tab: the reusable CodeEditor widget (its ce-* classes). */
+      .bs-form-components { background: #0b1118; border: 1px solid #1b2535; border-radius: 8px; overflow: hidden; }
+      .ce-flex { display: flex; }
+      .ce-gutter { display: none; }
+      .ce-area { position: relative; flex: 1; min-width: 0; }
+      .ce-code { margin: 0; box-sizing: border-box; width: 100%; min-height: 240px; padding: 12px;
+                 font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px;
+                 line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+      .ce-pre { color: #e6edf3; pointer-events: none; }
+      .ce-textarea { position: absolute; top: 0; left: 0; height: 100%; color: transparent; background: transparent;
+                     caret-color: #e6edf3; border: none; outline: none; resize: none; overflow: hidden; }
+      .ce-seg-com { color: #6b6b86; font-style: italic; }
+      .ce-seg-sel { color: #f0c674; }
+      .ce-seg-prop { color: #82aaff; }
+      .ce-seg-val { color: #c3e88d; }
+      .ce-seg-num { color: #f78c6c; }
+      .ce-seg-var { color: #80cbc4; }
+      .ce-seg-str { color: #c3e88d; }
+      .ce-seg-kw { color: #c792ea; }
+      .ce-seg-op { color: #8a8aa6; }
+
+      /* Wizard panel: high-level theme knobs. */
+      .wz-form { display: flex; flex-direction: column; gap: 14px; }
+      .wz-intro { font-size: 12.5px; color: #8aa0b2; line-height: 1.5; }
+      .wz-row { display: flex; align-items: flex-start; gap: 14px; }
+      .wz-label { flex: 0 0 130px; padding-top: 6px; font-size: 13px; font-weight: 600; color: #cdd9e5; }
+      .wz-seg { display: flex; flex-wrap: wrap; gap: 4px; }
+      .wz-opt { border: 1px solid #2a3550; background: #0f1a2e; color: #aebfcf; font: inherit; font-size: 12.5px;
+                padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+      .wz-opt:hover { border-color: #3a7bd5; }
+      .wz-opt.active { background: #3a7bd5; border-color: #3a7bd5; color: #fff; }
+      .wz-select { background: #0b1118; color: #e6edf3; border: 1px solid #2a3550; border-radius: 6px;
+                   padding: 6px 10px; font: inherit; font-size: 13px; min-width: 180px; }
+      .wz-palette-body { display: flex; flex-direction: column; gap: 10px; }
+      .wz-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #aebfcf; cursor: pointer; }
+      .wz-seeds { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; padding: 4px 0 2px; }
+      .wz-seed { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; color: #8aa0b2; }
+      .wz-seed input[type=color] { width: 44px; height: 32px; padding: 0; border: 1px solid #2a3550;
+                                   border-radius: 6px; background: #0b1118; cursor: pointer; }
+      .wz-hint { flex-basis: 100%; font-size: 11.5px; color: #6b7d92; }
+      .wz-actions { margin-top: 4px; }
+      .wz-reset { border: 1px solid #4a2531; background: #2a151b; color: #e9a8b3; font: inherit; font-size: 12.5px;
+                  padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+      .wz-reset:hover { border-color: #c0556a; }
     </style>
   </head>
   <body>

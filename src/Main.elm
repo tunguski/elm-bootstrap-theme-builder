@@ -13,6 +13,8 @@ template as the starting file) and the Bootstrap preview pane (`BootstrapPreview
 import BootstrapPreview
 import Editor
 import Highlight
+import ThemeForm
+import ThemeWizard
 
 
 main : Program () (Editor.Model BootstrapPreview.Model BootstrapPreview.Msg) (Editor.Msg BootstrapPreview.Msg)
@@ -28,6 +30,10 @@ main =
         , sessionKey = "bs-theme-builder"
         , fileBrowser = False
         , backLink = Nothing
+        , panels =
+            [ { icon = "form", title = "Form", tabs = ThemeForm.tabs, view = ThemeForm.view }
+            , { icon = "wizard", title = "Wizard", tabs = [], view = \_ source -> ThemeWizard.view source }
+            ]
         }
 
 

@@ -44,6 +44,8 @@ spec =
     , subscriptions = \_ _ -> Sub.none
     , view = view
     , error = \_ -> Nothing
+    , onAddFile = Nothing
+    , takeNewFile = \_ -> Nothing
     }
 
 

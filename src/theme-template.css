@@ -229,11 +229,11 @@
 }
 
 
-/* ===========================================================================
- * Component overrides (examples — uncomment and tweak)
- * ===========================================================================
- * Beyond the variables above you can restyle any component directly.
- */
+/* ===== component styles — edit freely below ===== */
+
+/* Component overrides (examples — uncomment and tweak). Beyond the variables above you can restyle
+   any component directly. In the "typed form" view, everything below this line is the Component
+   styles tab; everything above it is the Properties tab. */
 
 /* .btn { --bs-btn-border-radius: 2rem; text-transform: uppercase; letter-spacing: .03em; } */
 /* .card { --bs-card-border-radius: 1rem; box-shadow: var(--bs-box-shadow-sm); } */
