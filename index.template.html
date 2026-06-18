@@ -229,12 +229,17 @@
 
         function frame() { return document.getElementById("preview-frame"); }
 
+        // NOTE: the closing tags below are written with an escaped slash (<\/style>, <\/head>, …).
+        // The runtime string is identical (JS treats \/ as /), but the *source* then holds no literal
+        // close tag for style / head / body / html / script, so neither the HTML parser nor a build
+        // step that scans for those tags (e.g. the Pages build-stamp injector) can mistake this string
+        // for the document's own tags.
         function frameDoc() {
           return '<!doctype html><html lang="en" data-bs-theme="' + theme + '">' +
             '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' +
             '<link href="' + BOOTSTRAP + '" rel="stylesheet">' +
-            '<style id="bs-custom-theme">' + lastCss + '</style>' +
-            '</head><body>' + EXAMPLE_HTML + '</body></html>';
+            '<style id="bs-custom-theme">' + lastCss + '<\/style>' +
+            '<\/head><body>' + EXAMPLE_HTML + '<\/body><\/html>';
         }
 
         // (Re)build the iframe's document into `f` and remember which node we built, so we can detect
