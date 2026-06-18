@@ -81,9 +81,9 @@ jobs:
                   . "letter-spacing:.02em\";(document.documentElement||document.body).appendChild(d);}"
                   . "if(document.readyState!=\"loading\")a();"
                   . "else document.addEventListener(\"DOMContentLoaded\",a);})();<\/script>";
-            # Greedy (.*) so we inject before the LAST </body> (or </html>) — the document's own
-            # close tag — never an earlier one that happens to appear inside an inline-script string
-            # (e.g. the preview iframe's `'</body></html>'`), which would corrupt that script.
+            # Greedy (.*) so we inject before the LAST </body> (or </html>) -- the document close
+            # tag -- never an earlier one that may appear inside an inline-script string (the preview
+            # iframe builds an HTML document as a JS string), which would corrupt that script.
             if    (s#(.*)</body>#$1$s</body>#s) {}
             elsif (s#(.*)</html>#$1$s</html>#s) {}
             else  { $_ .= $s }
