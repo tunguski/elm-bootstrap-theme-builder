@@ -225,7 +225,7 @@
 
         var lastCss = "";
         var theme = "light";
-        var built = false;
+        var builtFrame = null; // the iframe node we last built into (to detect it being replaced)
 
         function frame() { return document.getElementById("preview-frame"); }
 
@@ -237,12 +237,11 @@
             '</head><body>' + EXAMPLE_HTML + '</body></html>';
         }
 
-        // Build the iframe once. Edits/toggles only touch the <style> element or the root attribute
-        // afterwards, so Bootstrap is never re-fetched and the preview never flickers.
-        function build() {
-          var f = frame();
-          if (!f || built) return;
-          built = true;
+        // (Re)build the iframe's document into `f` and remember which node we built, so we can detect
+        // it being replaced. Edits/toggles afterwards only touch the <style> element or the root
+        // attribute, so Bootstrap is never re-fetched and the preview never flickers.
+        function build(f) {
+          builtFrame = f;
           f.addEventListener("load", function () {
             try {
               var doc = f.contentDocument;
@@ -254,21 +253,33 @@
           f.setAttribute("srcdoc", frameDoc());
         }
 
+        // Ensure the live iframe is the one we built; build it if it's new or was replaced by an Elm
+        // re-render (which would have dropped the externally-set srcdoc). Returns the iframe or null.
+        function ensureBuilt() {
+          var f = frame();
+          if (!f) return null;
+          if (f !== builtFrame || !f.getAttribute("srcdoc")) build(f);
+          return f;
+        }
+
         function applyCss(css) {
           lastCss = css == null ? "" : css;
-          if (!built) { build(); return; }
+          var f = ensureBuilt();
+          if (!f) return;
           try {
-            var doc = frame() && frame().contentDocument;
-            var el = doc && doc.getElementById("bs-custom-theme");
+            var el = f.contentDocument && f.contentDocument.getElementById("bs-custom-theme");
             if (el) el.textContent = lastCss;
           } catch (e) {}
         }
 
         function applyTheme(t) {
           theme = t;
+          var f = ensureBuilt();
+          if (!f) return;
           try {
-            var doc = frame() && frame().contentDocument;
-            if (doc && doc.documentElement) doc.documentElement.setAttribute("data-bs-theme", t);
+            if (f.contentDocument && f.contentDocument.documentElement) {
+              f.contentDocument.documentElement.setAttribute("data-bs-theme", t);
+            }
           } catch (e) {}
         }
 
@@ -276,17 +287,26 @@
           if (navigator.clipboard) { navigator.clipboard.writeText(txt).catch(function () {}); }
         }
 
-        // The compiled elm-lang app exposes its ports on window.$app; it may mount a tick after this
-        // script runs, so poll briefly until the ports (and the iframe element) exist.
-        function wire() {
-          if (!window.$app || !window.$app.ports) { setTimeout(wire, 30); return; }
-          var p = window.$app.ports;
-          if (p.renderCss) p.renderCss.subscribe(applyCss);
-          if (p.setPreviewTheme) p.setPreviewTheme.subscribe(applyTheme);
-          if (p.copyToClipboard) p.copyToClipboard.subscribe(copy);
-          (function ensureFrame() { if (frame()) build(); else setTimeout(ensureFrame, 30); })();
-        }
-        wire();
+        // Build the iframe as soon as it exists — independently of the Elm app's ports. This is the
+        // key robustness point: the preview shows (at least default Bootstrap) even if the app mounts
+        // late or its ports never wire up; and the poll self-heals if a re-render ever replaces the
+        // iframe node (the srcdoc check above triggers a rebuild).
+        (function pollFrame() {
+          ensureBuilt();
+          setTimeout(pollFrame, 250);
+        })();
+
+        // Subscribe to the app's ports once they appear (it may mount a tick after this script runs).
+        (function wire() {
+          if (window.$app && window.$app.ports) {
+            var p = window.$app.ports;
+            if (p.renderCss) p.renderCss.subscribe(applyCss);
+            if (p.setPreviewTheme) p.setPreviewTheme.subscribe(applyTheme);
+            if (p.copyToClipboard) p.copyToClipboard.subscribe(copy);
+            return;
+          }
+          setTimeout(wire, 30);
+        })();
       })();
     </script>
   </body>
