@@ -7,3 +7,5 @@ vendor/
 # elm-lang / elm tooling caches
 elm-stuff/
 *.js
+git-deps/
+elm.vendored.local.json

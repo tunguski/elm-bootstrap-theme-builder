@@ -3,9 +3,8 @@
 # build.sh — build the Bootstrap 5.3 theme builder.
 #
 # The app reuses the whole elm-editor shell (file pane, code editing, resizable panes, sharing,
-# autosave) via Editor.program, plugging in its own CSS-preview pane. Since Elm has no cross-project
-# imports, we copy the shell modules we need into vendor/ (a source-directory listed in elm.json)
-# before compiling. Set EDITOR to the elm-editor checkout (default ../elm-editor) and ELM to the
+# autosave) via Editor.program, plugging in its own CSS-preview pane. The shell modules are a source
+# dependency declared in elm.vendored.json, resolved by the compiler at build time. Set ELM to the
 # elm-lang CLI (default `elm`).
 #
 #   ELM=../../elm.sh ./build.sh
@@ -14,18 +13,10 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 ELM="${ELM:-elm}"
-EDITOR="${EDITOR:-../elm-editor}"
 OUT="build"
 
-# 1) Vendor the editor shell modules (and the CSS highlighter) from elm-editor.
-mkdir -p vendor
-for m in Highlight CodeEditor Share Preview Editor; do
-  if [ ! -f "$EDITOR/src/$m.elm" ]; then
-    echo "build.sh: missing $EDITOR/src/$m.elm — set EDITOR to the elm-editor checkout" >&2
-    exit 1
-  fi
-  cp "$EDITOR/src/$m.elm" "vendor/$m.elm"
-done
+# The editor shell modules are a source dependency declared in elm.vendored.json; the compiler
+# resolves them at build time (git-deps/ at the pinned ref, or the local elm.vendored.local.json).
 
 # 2) Compile the app (it type-checks cleanly, like the other elm-lang example apps). Absolute
 #    paths are used because the elm.sh wrapper chdirs to the elm-lang project before running.
