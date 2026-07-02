@@ -177,8 +177,10 @@ componentsView source =
         [ CodeEditor.view
             { source = compText
             , caret = 0
+            , gutter = True
             , highlight = Highlight.cssSegments
             , onChange = \new _ -> setComponents new source
+            , onKey = Nothing
             }
         ]
 
